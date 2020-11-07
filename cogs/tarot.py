@@ -5,11 +5,102 @@ import discord
 import random
 
 
+class Side:
+    def __init__(self, member):
+        self.member = member
+        self.trade = {}
+        self.ok = False
+
+
+class Trade:
+    def __init__(self, cog, left, right):
+        self.cog = cog
+        self.left_side = Side(left)
+        self.right_side = Side(right)
+        self.right_side.ok = True
+
+    def get_side(self, is_left):
+        if is_left:
+            me = self.left_side
+        else:
+            me = self.right_side
+        return me
+
+    async def add(self, ctx, number: int, is_left):
+        self.left_side.ok, self.right_side.ok = False, False
+        side = self.get_side(is_left)
+        n_card = self.cog.inv_dict(side.member).get(number)
+        if not n_card:
+            await ctx.send("Vous ne possédez pas cette carte")
+        elif n_card < (side.trade.get(number) or 0) + 1:
+            await ctx.send("Vous ne possédez pas suffisament de cartes pour effectuer cet échange")
+        else:
+            side.trade[number] = 1 + (side.trade.get(number) or 0)
+            await self.update(ctx)
+
+    async def rem(self, ctx, number: int, is_left):
+        self.left_side.ok, self.right_side.ok = False, False
+        side = self.get_side(is_left)
+        n = side.trade.get(number)
+        if n:
+            side.trade[number] -= 1
+            if n == 1:
+                side.trade.pop(number)
+            await self.update(ctx)
+        else:
+            await ctx.send("Opération impossible")
+
+    async def accept(self, ctx, is_left):
+        side = self.get_side(is_left)
+        side.ok = True
+        if self.right_side.ok and self.left_side.ok:
+            await ctx.send("Les deux participants se sont mis d'accord")
+            self.execute()
+            await ctx.send("Echange terminé")
+            return
+        await self.update(ctx)
+
+    async def update(self, ctx):
+        embed = discord.Embed(title="Echange", description="<->", color=0x000000)
+        embed.add_field(name=self.left_side.member.display_name, value=self.stringify(self.left_side), inline=True)
+        embed.add_field(name=self.right_side.member.display_name, value=self.stringify(self.right_side), inline=True)
+        await ctx.send(embed=embed)
+
+    def stringify(self, side):
+        str = ""
+        card_infos = self.cog.infos()
+        for card_n, count in list(side.trade.items()):
+            str += f"{card_infos[card_n][0]}-{card_infos[card_n][1]} x{count}\n"
+        if not str: str += "Rien"
+        if side.ok: str = "✅\n" + str
+        else: str = "❎\n" + str
+        return str
+
+    def execute(self):
+        cursor = self.cog.client.mydb.cursor()
+        query = ("UPDATE cards SET user_id = ? "
+                 "WHERE (deck_n, card_n) IN ( "
+                 "SELECT deck_n, card_n FROM cards "
+                 "WHERE user_id = ? AND card_n = ? "
+                 "LIMIT 1 )")
+        for card_n, count in list(self.left_side.trade.items()):
+            for _ in range(count):
+                cursor.execute(query, (-1, self.left_side.member.id, card_n))
+        for card_n, count in list(self.right_side.trade.items()):
+            for _ in range(count):
+                cursor.execute(query, (self.left_side.member.id, self.right_side.member.id, card_n))
+        for card_n, count in list(self.left_side.trade.items()):
+            for _ in range(count):
+                cursor.execute(query, (self.right_side.member.id, -1, card_n))
+        self.cog.client.mydb.commit()
+
+
 class Tarot(Module):
     def __init__(self, client):
         super().__init__(client)
         self.n_decks = 2
         self.n_cards = 22
+        self.trades = []
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -61,7 +152,7 @@ class Tarot(Module):
                            "WHERE deck_n = ? AND card_n = ?",
                            (member.id, *result))
             self.client.mydb.commit()
-            await ctx.send(f"{member.display_name} a obtenue la carte {result[1]}")
+            await ctx.send(f"{member.display_name} a obtenu la carte {result[1]}")
         else:
             await ctx.send("Carte introuvable !")
 
@@ -87,26 +178,52 @@ class Tarot(Module):
             member = ctx.author
         else:
             msg = msg = f"Cartes de {member.display_name}: \n"
-        cursor = self.client.mydb.cursor()
 
+        cards_info = self.infos()
+        result = self.inv_dict(member)
+
+        msg +="```diff\n"
+        for i, (prefix, name) in enumerate(cards_info):
+            count = result.get(i)
+            if count:
+                msg += f"+ {prefix:<8} {name:<20} x{count:<10}\n"
+            else:
+                msg += f"# {prefix:<8} {name:<20} x0\n"
+        msg += "```"
+        await ctx.send(msg)
+
+    @commands.command()
+    async def diff(self, ctx, member: discord.Member):
+        cards_info = self.infos()
+        my_cards = self.inv_dict(ctx.author)
+        opponent_cards = self.inv_dict(member)
+        msg ="Diff : \n```diff\n"
+        for i, (prefix, name) in enumerate(cards_info):
+            me = my_cards.get(i)
+            me_double = bool((my_cards.get(i) or 0) >= 2)
+            opponent = opponent_cards.get(i)
+            opponent_double = bool((opponent_cards.get(i) or 0) >= 2)
+            if me_double and not opponent:
+                msg += f"- {prefix:<8} {name:<20} \n"
+            elif opponent_double and not me:
+                msg += f"+ {prefix:<8} {name:<20} \n"
+            else:
+                msg += f"# {prefix:<8} {name:<20} \n"
+        msg += "```"
+        await ctx.send(msg)
+
+    def infos(self):
+        cursor = self.client.mydb.cursor()
         cursor.execute("SELECT prefix, name FROM cards_info")
-        cards_info = cursor.fetchall()
+        return cursor.fetchall()
+
+    def inv_dict(self, member):
+        cursor = self.client.mydb.cursor()
         cursor.execute("SELECT card_n, COUNT(*) FROM cards "
                        "WHERE user_id = ? "
                        "GROUP BY card_n ",
                        (member.id,))
-        result = cursor.fetchall()
-        result = dict(result)
-
-        msg +="```diff\n"
-        for i, (prefix, name) in enumerate(cards_info):
-            count = result.get(i+1)
-            if count:
-                msg += f"+ {prefix:<8} {name:<20} x{count:<10}\n"
-            else:
-                msg += f"- {prefix:<8} {name:<20} x0\n"
-        msg += "```"
-        await ctx.send(msg)
+        return dict(cursor.fetchall())
 
     @commands.command()
     async def show(self, ctx, number: int):
@@ -129,6 +246,53 @@ class Tarot(Module):
                        (number,))
         self.client.mydb.commit()
         await ctx.send(f"Carte {number} débloquée")
+
+    @commands.group()
+    async def trade(self, ctx):
+        if ctx.invoked_subcommand is None:
+            trade, is_left = await self.find_trade(ctx)
+            await trade.update(ctx)
+
+    @trade.command()
+    async def start(self, ctx, member: discord.Member):
+        for trade in self.trades:
+            if ctx.author.id == trade.left.id or ctx.author.id == trade.right.id:
+                await ctx.send(f"Vous êtes déjà en cours d'échange")
+                return
+            if ctx.author.id == trade.left.id or ctx.author.id == trade.right.id:
+                await ctx.send(f"{member.display_name} est déjà en cours d'échange")
+                return
+        await ctx.send(f"Echange démaré avec {member.display_name}")
+        self.trades.append(Trade(self, ctx.author, member))
+
+    @trade.command(alias=["+"])
+    async def add(self, ctx, number: int):
+        trade, is_left = await self.find_trade(ctx)
+        await trade.add(ctx, number, is_left)
+
+    @trade.command(alias=["-"])
+    async def rem(self, ctx, number: int):
+        trade, is_left = await self.find_trade(ctx)
+        await trade.rem(ctx, number, is_left)
+
+    @trade.command()
+    async def accept(self, ctx):
+        trade, is_left = await self.find_trade(ctx)
+        await trade.accept(ctx, is_left)
+
+    @trade.command()
+    async def decline(self, ctx):
+        trade, _ = await self.find_trade(ctx)
+        self.trades.pop(trade)
+        await ctx.send(f"Echange annulé par {ctx.author.display_name}")
+
+    async def find_trade(self, ctx):
+        for trade in self.trades:
+            if ctx.author.id == trade.left_side.member.id:
+                return trade, True
+            if ctx.author.id == trade.right_side.member.id:
+                return trade, False
+        await ctx.send("Aucun échange en cours")
 
 
 def setup(client):

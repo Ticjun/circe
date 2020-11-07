@@ -36,7 +36,6 @@ class ChatoBot(BotPersistent):
 client = ChatoBot(command_prefix='!')
 client.command_prefix = client.data["prefix"]
 
-
 @client.command()
 @commands.has_any_role("Circé")
 async def load(ctx, extension):
