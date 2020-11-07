@@ -4,30 +4,7 @@ from botpersistent import Module
 import discord
 import random
 
-card_names = [
-"O-Le Mat",
-"I-Le Bateleur",
-"II-La Papesse",
-"III-L'Impératrice",
-"IIII-L'Empereur",
-"V-Le Pape",
-"VI-L'Amoureux",
-"VII-Le Chariot",
-"VIII-La Justice",
-"VIIII-L'Ermite",
-"X-La Roue de Fortune",
-"XI-La Force",
-"XII-Le Pendu",
-"XIII-La Mort",
-"XIIII-Tempérance",
-"XV-Le Diable",
-"XVI-La Maison Dieu",
-"XVII-L'Étoile",
-"XVIII-La Lune",
-"XVIIII-Le Soleil",
-"XX-Le Jugement",
-"XXI-Le Monde"
-]
+
 class Tarot(Module):
     def __init__(self, client):
         super().__init__(client)
@@ -58,12 +35,13 @@ class Tarot(Module):
     @commands.has_any_role("Circé")
     async def fill(self, ctx):
         cursor = self.client.mydb.cursor()
-        cards = [(deck, card) for deck in range(1, self.n_decks+1) for card in range(1, self.n_cards+1)]
+        cards = [(deck, card) for deck in range(1, self.n_decks+1) for card in range(0, self.n_cards)]
         random.shuffle(cards)
         for card in cards:
             cursor.execute("INSERT INTO cards VALUES(?, ?, 0)",
                            (*card, ))
         self.client.mydb.commit()
+        ctx.send("Cartes ajoutées")
 
     @commands.command()
     @commands.has_any_role("Circé")
@@ -110,6 +88,9 @@ class Tarot(Module):
         else:
             msg = msg = f"Cartes de {member.display_name}: \n"
         cursor = self.client.mydb.cursor()
+
+        cursor.execute("SELECT prefix, name FROM cards_info")
+        cards_info = cursor.fetchall()
         cursor.execute("SELECT card_n, COUNT(*) FROM cards "
                        "WHERE user_id = ? "
                        "GROUP BY card_n ",
@@ -118,14 +99,36 @@ class Tarot(Module):
         result = dict(result)
 
         msg +="```diff\n"
-        for i in range(self.n_cards):
+        for i, (prefix, name) in enumerate(cards_info):
             count = result.get(i+1)
             if count:
-                msg+=f"+ {card_names[i]} x{count}\n"
+                msg += f"+ {prefix:<8} {name:<20} x{count:<10}\n"
             else:
-                msg += f"- {card_names[i]} x0\n"
+                msg += f"- {prefix:<8} {name:<20} x0\n"
         msg += "```"
         await ctx.send(msg)
+
+    @commands.command()
+    async def show(self, ctx, number: int):
+        cursor = self.client.mydb.cursor()
+        cursor.execute("SELECT url, unlocked FROM cards_info "
+                       "WHERE n = ? ",
+                       (number,))
+        url, unlocked = cursor.fetchone()
+        if unlocked:
+            await ctx.send(url)
+        else:
+            await ctx.send("Cette carte n'est pas encore disponible")
+
+    @commands.command()
+    @commands.has_any_role("Circé")
+    async def unlock(self, ctx, number: int):
+        cursor = self.client.mydb.cursor()
+        cursor.execute("UPDATE cards_info SET unlocked = 1 "
+                       "WHERE n = ?",
+                       (number,))
+        self.client.mydb.commit()
+        await ctx.send(f"Carte {number} débloquée")
 
 
 def setup(client):

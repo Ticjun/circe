@@ -58,8 +58,8 @@ async def unload(ctx, extension):
 async def shutdown(ctx):
     client.save()
     for filename in client.data["load"]:
-        client.unload_extension(f"cogs.{filename[:-3]}")
-        print(f"unloaded {filename[:-3]}")
+        client.unload_extension(f"cogs.{filename}")
+        print(f"unloaded {filename}")
     await client.close()
 
 

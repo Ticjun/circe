@@ -4,5 +4,8 @@
     "guild_id": 0,
     "prefix": "!",
     "load": []
+  },
+  "Tarot": {
+    "unlocked": []
   }
 }
