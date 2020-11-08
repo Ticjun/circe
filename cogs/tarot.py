@@ -1,8 +1,9 @@
 import typing
-from discord.ext import commands
+from discord.ext import commands, tasks
 from botpersistent import Module
 import discord
 import random
+import asyncio
 
 
 class Side:
@@ -104,7 +105,15 @@ class Tarot(Module):
 
     @commands.Cog.listener()
     async def on_ready(self):
+        self.tarot_channel = self.client.get_channel(774795918557708318)
         self.redeem_channel = self.client.get_channel(774622426080083999)
+        await self.random_spawn()
+
+    async def random_spawn(self):
+        while True:
+            time = random.uniform(10, 100)
+            await asyncio.sleep(time)
+            await self.spawn(None, "random event", "rand")
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -137,27 +146,36 @@ class Tarot(Module):
     @commands.command()
     @commands.has_any_role("Circé")
     async def give(self, ctx, card_n, member: discord.Member):
+        cursor = self.client.mydb.cursor()
         if card_n == "rand":
-            cursor = self.client.mydb.cursor()
             cursor.execute("SELECT deck_n, card_n FROM cards "
                            "WHERE user_id = 0")
+        elif card_n == "new":
+            cursor.execute("SELECT deck_n, card_n FROM cards "
+                           "WHERE card_n NOT IN")
         else:
-            cursor = self.client.mydb.cursor()
             cursor.execute("SELECT deck_n, card_n FROM cards "
                            "WHERE card_n = ? AND user_id = 0",
                            (card_n,))
+
         result = cursor.fetchone()
         if result:
             cursor.execute("UPDATE cards SET user_id = ? "
                            "WHERE deck_n = ? AND card_n = ?",
                            (member.id, *result))
             self.client.mydb.commit()
-            await ctx.send(f"{member.display_name} a obtenu la carte {result[1]}")
+            await self.tarot_channel.send(f"{member.display_name} a obtenu la carte {result[1]}")
+        elif card_n == "new":
+            await self.tarot_channel.send("Vous avez déjà obtenu toutes les cartes (Bravo !)"
+                           "Vous obtenez donc une carte aléatoire")
+            await self.give(None, "rand", member)
         else:
-            await ctx.send("Carte introuvable !")
+            await self.tarot_channel.send("Carte introuvable !")
 
     @commands.command()
     async def redeem(self, ctx, code):
+        if ctx.channel.id != self.redeem_channel:
+            return
         cursor = self.client.mydb.cursor()
         cursor.execute("SELECT card_n FROM codes "
                        "WHERE code = ? AND used = 0 ",
@@ -169,7 +187,17 @@ class Tarot(Module):
                            (code, ))
             self.client.mydb.commit()
             await ctx.send("Code correct")
-            await ctx.invoke(self.give, result[0], ctx.author)
+            await self.give(None, result[0], ctx.author)
+
+    @commands.command()
+    @commands.has_any_role("Circé")
+    async def spawn(self, ctx, message, card_n):
+        msg = await self.tarot_channel.send(message)
+        await msg.add_reaction("🧙")
+        def check(reaction, user):
+            return not user.bot and reaction.message.id == msg.id
+        reaction, user = await self.client.wait_for('reaction_add', check=check)
+        await self.give(None, card_n, user)
 
     @commands.command()
     @commands.has_any_role("Circé")
