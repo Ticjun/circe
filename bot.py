@@ -24,6 +24,7 @@ class ChatoBot(BotPersistent):
         print(self.user.name)
         print(self.user.id)
         print('------')
+        self.guild = self.get_guild(self.data["guild_id"])
 
     async def on_message(self, message):
         await self.process_commands(message)

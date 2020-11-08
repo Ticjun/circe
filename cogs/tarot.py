@@ -4,6 +4,7 @@ from botpersistent import Module
 import discord
 import random
 import asyncio
+from dataclasses import dataclass
 
 
 class Side:
@@ -11,6 +12,18 @@ class Side:
         self.member = member
         self.trade = {}
         self.ok = False
+
+
+@dataclass
+class Card:
+    n: int
+    prefix: str
+    name: str
+    url: str
+    desc: str
+    color: str
+    role_id: int
+    unlocked: bool
 
 
 class Trade:
@@ -62,16 +75,16 @@ class Trade:
         await self.update(ctx)
 
     async def update(self, ctx):
-        embed = discord.Embed(title="Echange", description="<->", color=0x000000)
+        embed = discord.Embed(title="Echange", color=0x000000)
         embed.add_field(name=self.left_side.member.display_name, value=self.stringify(self.left_side), inline=True)
         embed.add_field(name=self.right_side.member.display_name, value=self.stringify(self.right_side), inline=True)
         await ctx.send(embed=embed)
 
     def stringify(self, side):
         str = ""
-        card_infos = self.cog.infos()
+        card_infos = self.cog.cards()
         for card_n, count in list(side.trade.items()):
-            str += f"{card_infos[card_n][0]}-{card_infos[card_n][1]} x{count}\n"
+            str += f"{card_infos[card_n].prefix}-{card_infos[card_n].name} x{count}\n"
         if not str: str += "Rien"
         if side.ok: str = "✅\n" + str
         else: str = "❎\n" + str
@@ -107,13 +120,14 @@ class Tarot(Module):
     async def on_ready(self):
         self.tarot_channel = self.client.get_channel(774795918557708318)
         self.redeem_channel = self.client.get_channel(774622426080083999)
-        await self.random_spawn()
 
-    async def random_spawn(self):
+    @commands.command()
+    @commands.has_any_role("Circé")
+    async def random_spawn(self, ctx):
         while True:
-            time = random.uniform(10, 100)
+            time = random.uniform(3600, 3600*2)
             await asyncio.sleep(time)
-            await self.spawn(None, "random event", "rand")
+            await self.spawn(ctx, "random event", "rand")
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -145,6 +159,28 @@ class Tarot(Module):
 
     @commands.command()
     @commands.has_any_role("Circé")
+    async def gen_roles(self, ctx):
+        cursor = self.client.mydb.cursor()
+        await ctx.guild.create_role(name=f"<Tarot>")
+        for card in self.cards():
+            role = await ctx.guild.create_role(name=f"{card.prefix}-{card.name}")
+            cursor.execute("UPDATE cards_info SET role_id = ? "
+                           "WHERE n = ?",
+                           (role.id, card.n))
+            await ctx.send(role.mention)
+        await ctx.guild.create_role(name=f"</Tarot>")
+        self.client.mydb.commit()
+
+    @commands.command()
+    @commands.has_any_role("Circé")
+    async def update_roles(self, ctx):
+        cards = self.cards()
+        for card in cards:
+            role = discord.utils.get(ctx.guild.roles, id=card.role_id)
+            await role.edit(name=f"{card.prefix} {card.name}", color=discord.Colour(int(card.color, 16)))
+
+    @commands.command()
+    @commands.has_any_role("Circé")
     async def give(self, ctx, card_n, member: discord.Member):
         cursor = self.client.mydb.cursor()
         if card_n == "rand":
@@ -152,22 +188,27 @@ class Tarot(Module):
                            "WHERE user_id = 0")
         elif card_n == "new":
             cursor.execute("SELECT deck_n, card_n FROM cards "
-                           "WHERE card_n NOT IN")
+                           "WHERE card_n NOT IN ( "
+                           "SELECT card_n FROM cards "
+                           "WHERE user_id=?)"
+                           "AND user_id = 0",
+                           (member.id,))
         else:
             cursor.execute("SELECT deck_n, card_n FROM cards "
                            "WHERE card_n = ? AND user_id = 0",
                            (card_n,))
-
         result = cursor.fetchone()
         if result:
+            card = self.cards()[result[1]]
             cursor.execute("UPDATE cards SET user_id = ? "
                            "WHERE deck_n = ? AND card_n = ?",
                            (member.id, *result))
             self.client.mydb.commit()
-            await self.tarot_channel.send(f"{member.display_name} a obtenu la carte {result[1]}")
+            role = discord.utils.get(ctx.guild.roles, id=card.role_id)
+            await self.tarot_channel.send(f"{member.display_name} a obtenu la carte {role.mention}")
         elif card_n == "new":
-            await self.tarot_channel.send("Vous avez déjà obtenu toutes les cartes (Bravo !)"
-                           "Vous obtenez donc une carte aléatoire")
+            await self.tarot_channel.send("Vous avez déjà obtenu toutes les cartes (Bravo !)\n"
+                                          "Vous obtenez donc une carte aléatoire")
             await self.give(None, "rand", member)
         else:
             await self.tarot_channel.send("Carte introuvable !")
@@ -197,7 +238,7 @@ class Tarot(Module):
         def check(reaction, user):
             return not user.bot and reaction.message.id == msg.id
         reaction, user = await self.client.wait_for('reaction_add', check=check)
-        await self.give(None, card_n, user)
+        await self.give(ctx, card_n, user)
 
     @commands.command()
     @commands.has_any_role("Circé")
@@ -211,48 +252,52 @@ class Tarot(Module):
     @commands.command()
     async def inv(self, ctx, member: typing.Optional[discord.Member]):
         if not member:
-            msg = "Vos cartes : \n"
+            title = "Vos cartes : \n"
             member = ctx.author
         else:
-            msg = msg = f"Cartes de {member.display_name}: \n"
+            title = f"Cartes de {member.display_name}: \n"
 
-        cards_info = self.infos()
+        cards_info = self.cards()
         result = self.inv_dict(member)
-
-        msg +="```diff\n"
-        for i, (prefix, name) in enumerate(cards_info):
+        msg = "```diff\n"
+        for i, card in enumerate(cards_info):
             count = result.get(i)
             if count:
-                msg += f"+ {prefix:<8} {name:<20} x{count:<10}\n"
+                msg += f"+ {card.prefix:<8} {card.name:<20} x{count:<10}\n"
             else:
-                msg += f"# {prefix:<8} {name:<20} x0\n"
+                msg += f"- {card.prefix:<8} {card.name:<20} x0\n"
         msg += "```"
-        await ctx.send(msg)
+        embed = discord.Embed(title="Inventaire", color=0x000000)
+        embed.add_field(name=title, value=msg, inline=False)
+        await ctx.send(embed=embed)
 
     @commands.command()
     async def diff(self, ctx, member: discord.Member):
-        cards_info = self.infos()
+        cards = self.cards()
         my_cards = self.inv_dict(ctx.author)
         opponent_cards = self.inv_dict(member)
-        msg ="Diff : \n```diff\n"
-        for i, (prefix, name) in enumerate(cards_info):
+        msg ="```diff\n"
+        for i, card in enumerate(cards):
             me = my_cards.get(i)
             me_double = bool((my_cards.get(i) or 0) >= 2)
             opponent = opponent_cards.get(i)
             opponent_double = bool((opponent_cards.get(i) or 0) >= 2)
             if me_double and not opponent:
-                msg += f"- {prefix:<8} {name:<20} \n"
+                msg += f"- {card.prefix:<8} {card.name:<20} \n"
             elif opponent_double and not me:
-                msg += f"+ {prefix:<8} {name:<20} \n"
+                msg += f"+ {card.prefix:<8} {card.name:<20} \n"
             else:
-                msg += f"# {prefix:<8} {name:<20} \n"
+                msg += f"# {card.prefix:<8} {card.name:<20} \n"
         msg += "```"
-        await ctx.send(msg)
+        embed = discord.Embed(title="Diff", color=0x000000)
+        embed.add_field(name="En rouge les cartes que vous pouvez donner\nEn vert celles qui vous intéressent", value=msg, inline=False)
+        await ctx.send(embed=embed)
 
-    def infos(self):
+    def cards(self):
         cursor = self.client.mydb.cursor()
-        cursor.execute("SELECT prefix, name FROM cards_info")
-        return cursor.fetchall()
+        cursor.execute("SELECT * FROM cards_info "
+                       "ORDER BY n")
+        return [Card(*t) for t in cursor.fetchall()]
 
     def inv_dict(self, member):
         cursor = self.client.mydb.cursor()
@@ -264,13 +309,14 @@ class Tarot(Module):
 
     @commands.command()
     async def show(self, ctx, number: int):
-        cursor = self.client.mydb.cursor()
-        cursor.execute("SELECT url, unlocked FROM cards_info "
-                       "WHERE n = ? ",
-                       (number,))
-        url, unlocked = cursor.fetchone()
-        if unlocked:
-            await ctx.send(url)
+        card = self.cards()[number]
+        if card.unlocked:
+            embed = discord.Embed(title=card.name,
+                                  url=card.url,
+                                  colour=discord.Colour(int(card.color, 16)))
+            embed.set_thumbnail(url=card.url)
+            embed.add_field(name=card.prefix, value=card.desc, inline=False)
+            await ctx.send(embed=embed)
         else:
             await ctx.send("Cette carte n'est pas encore disponible")
 
@@ -320,7 +366,7 @@ class Tarot(Module):
     @trade.command()
     async def decline(self, ctx):
         trade, _ = await self.find_trade(ctx)
-        self.trades.pop(trade)
+        self.trades.remove(trade)
         await ctx.send(f"Echange annulé par {ctx.author.display_name}")
 
     async def find_trade(self, ctx):
