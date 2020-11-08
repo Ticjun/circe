@@ -1,13 +1,12 @@
 import os
 
 import sqlite3
-import discord
 from discord.ext import commands
 
 from botpersistent import BotPersistent
 
 
-class ChatoBot(BotPersistent):
+class Circe(BotPersistent):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.guild = 0
@@ -34,7 +33,7 @@ class ChatoBot(BotPersistent):
         return [filename for filename in os.listdir("./cogs") if filename.endswith(".py")]
 
 
-client = ChatoBot(command_prefix='!')
+client = Circe(command_prefix='!')
 client.command_prefix = client.data["prefix"]
 
 @client.command()
