@@ -172,6 +172,15 @@ class Tarot(Module):
             await ctx.invoke(self.give, result[0], ctx.author)
 
     @commands.command()
+    @commands.has_any_role("Circé")
+    async def addcode(self, ctx, code, card_n="rand"):
+        cursor = self.client.mydb.cursor()
+        cursor.execute("INSERT INTO codes VALUES(?, 0, ?)",
+                       (code, card_n))
+        self.client.mydb.commit()
+        await ctx.send("Code ajouté")
+
+    @commands.command()
     async def inv(self, ctx, member: typing.Optional[discord.Member]):
         if not member:
             msg = "Vos cartes : \n"
