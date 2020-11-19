@@ -234,7 +234,7 @@ class Tarot(Module):
     @commands.has_any_role("Circé")
     async def spawn(self, ctx, message, card_n):
         msg = await self.tarot_channel.send(message)
-        await msg.add_reaction("🧙")
+        await msg.add_reaction("🧙‍♀️")
         def check(reaction, user):
             return not user.bot and reaction.message.id == msg.id
         reaction, user = await self.client.wait_for('reaction_add', check=check)

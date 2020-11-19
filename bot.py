@@ -1,7 +1,10 @@
+import discord
+import itertools
 import os
 
 import sqlite3
 from discord.ext import commands
+from discord.ext.commands import DefaultHelpCommand, Group
 
 from botpersistent import BotPersistent
 
@@ -35,6 +38,7 @@ class Circe(BotPersistent):
 
 client = Circe(command_prefix='!')
 client.command_prefix = client.data["prefix"]
+
 
 @client.command()
 @commands.has_any_role("Circé")
