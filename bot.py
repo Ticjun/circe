@@ -1,12 +1,11 @@
-import discord
-import itertools
 import os
 
 import sqlite3
 from discord.ext import commands
-from discord.ext.commands import DefaultHelpCommand, Group
 
 from botpersistent import BotPersistent
+
+admin_id = 774620092352430092
 
 
 class Circe(BotPersistent):
@@ -41,7 +40,7 @@ client.command_prefix = client.data["prefix"]
 
 
 @client.command()
-@commands.has_any_role("Circé")
+@commands.has_any_role(admin_id)
 async def load(ctx, extension):
     client.load_extension(f"cogs.{extension}")
     client.data["load"].append(extension)
@@ -49,7 +48,7 @@ async def load(ctx, extension):
 
 
 @client.command()
-@commands.has_any_role("Circé")
+@commands.has_any_role(admin_id)
 async def unload(ctx, extension):
     client.unload_extension(f"cogs.{extension}")
     client.data["load"].pop(extension)
@@ -57,7 +56,7 @@ async def unload(ctx, extension):
 
 
 @client.command()
-@commands.has_any_role("Circé")
+@commands.has_any_role(admin_id)
 async def shutdown(ctx):
     client.save()
     for filename in client.data["load"]:
@@ -67,14 +66,14 @@ async def shutdown(ctx):
 
 
 @client.command()
-@commands.has_any_role("Circé")
+@commands.has_any_role(admin_id)
 async def reload(ctx):
     client.save()
     await client.logout()
 
 
 @client.command()
-@commands.has_any_role("Circé")
+@commands.has_any_role(admin_id)
 async def prefix(ctx, prefix=None):
     if prefix:
         client.command_prefix = prefix

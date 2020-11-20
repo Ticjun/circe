@@ -1,11 +1,19 @@
 {
   "Bot": {
     "token": "0",
+    "matrix": "",
+    "hs_url": "",
+    "next_batch": "",
     "guild_id": 0,
     "prefix": "!",
     "load": []
   },
   "Tarot": {
     "unlocked": []
+  },
+  "Matrix" : {
+    "matrix": "",
+    "hs_url" : "",
+    "next_batch": ""
   }
 }

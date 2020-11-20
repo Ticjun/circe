@@ -1,6 +1,7 @@
-import typing
-from discord.ext import commands, tasks
+from discord.ext import commands
 from botpersistent import Module
+from bot import admin_id
+from cogs.matrix import Member
 import discord
 import random
 import asyncio
@@ -40,7 +41,7 @@ class Trade:
             me = self.right_side
         return me
 
-    async def add(self, ctx, number: int, is_left):
+    async def add(self, ctx, number, is_left):
         self.left_side.ok, self.right_side.ok = False, False
         side = self.get_side(is_left)
         n_card = self.cog.inv_dict(side.member).get(number)
@@ -52,7 +53,7 @@ class Trade:
             side.trade[number] = 1 + (side.trade.get(number) or 0)
             await self.update(ctx)
 
-    async def rem(self, ctx, number: int, is_left):
+    async def rem(self, ctx, number, is_left):
         self.left_side.ok, self.right_side.ok = False, False
         side = self.get_side(is_left)
         n = side.trade.get(number)
@@ -91,7 +92,7 @@ class Trade:
         return str
 
     def execute(self):
-        cursor = self.cog.client.mydb.cursor()
+        cursor = self.cog.bot.mydb.cursor()
         query = ("UPDATE cards SET user_id = ? "
                  "WHERE (deck_n, card_n) IN ( "
                  "SELECT deck_n, card_n FROM cards "
@@ -106,7 +107,7 @@ class Trade:
         for card_n, count in list(self.left_side.trade.items()):
             for _ in range(count):
                 cursor.execute(query, (self.right_side.member.id, -1, card_n))
-        self.cog.client.mydb.commit()
+        self.cog.bot.mydb.commit()
 
 
 class Tarot(Module):
@@ -122,7 +123,7 @@ class Tarot(Module):
         self.redeem_channel = self.client.get_channel(774622426080083999)
 
     @commands.command()
-    @commands.has_any_role("Circé")
+    @commands.has_any_role(admin_id)
     async def random_spawn(self, ctx):
         while True:
             time = random.uniform(3600, 3600*2)
@@ -142,11 +143,11 @@ class Tarot(Module):
                 print("user not in db")
                 cursor.execute("INSERT INTO users VALUES(?)",
                                (message.author.id,))
-                print(f"inserted user {message.author.name}")
+                print(f"inserted user {message.author.display_name}")
             self.client.mydb.commit()
 
     @commands.command()
-    @commands.has_any_role("Circé")
+    @commands.has_any_role(admin_id)
     async def fill(self, ctx):
         cursor = self.client.mydb.cursor()
         cards = [(deck, card) for deck in range(1, self.n_decks+1) for card in range(0, self.n_cards)]
@@ -158,7 +159,7 @@ class Tarot(Module):
         ctx.send("Cartes ajoutées")
 
     @commands.command()
-    @commands.has_any_role("Circé")
+    @commands.has_any_role(admin_id)
     async def gen_roles(self, ctx):
         cursor = self.client.mydb.cursor()
         await ctx.guild.create_role(name=f"<Tarot>")
@@ -172,7 +173,7 @@ class Tarot(Module):
         self.client.mydb.commit()
 
     @commands.command()
-    @commands.has_any_role("Circé")
+    @commands.has_any_role(admin_id)
     async def update_roles(self, ctx):
         cards = self.cards()
         for card in cards:
@@ -180,8 +181,9 @@ class Tarot(Module):
             await role.edit(name=f"{card.prefix} {card.name}", color=discord.Colour(int(card.color, 16)))
 
     @commands.command()
-    @commands.has_any_role("Circé")
-    async def give(self, ctx, card_n, member: discord.Member):
+    @commands.has_any_role(admin_id)
+    async def give(self, ctx, card_n, member):
+        member = await Member.convert(ctx, member)
         cursor = self.client.mydb.cursor()
         if card_n == "rand":
             cursor.execute("SELECT deck_n, card_n FROM cards "
@@ -231,7 +233,7 @@ class Tarot(Module):
             await self.give(None, result[0], ctx.author)
 
     @commands.command()
-    @commands.has_any_role("Circé")
+    @commands.has_any_role(admin_id)
     async def spawn(self, ctx, message, card_n):
         msg = await self.tarot_channel.send(message)
         await msg.add_reaction("🧙‍♀️")
@@ -241,7 +243,7 @@ class Tarot(Module):
         await self.give(ctx, card_n, user)
 
     @commands.command()
-    @commands.has_any_role("Circé")
+    @commands.has_any_role(admin_id)
     async def addcode(self, ctx, code, card_n="rand"):
         cursor = self.client.mydb.cursor()
         cursor.execute("INSERT INTO codes VALUES(?, 0, ?)",
@@ -250,7 +252,8 @@ class Tarot(Module):
         await ctx.send("Code ajouté")
 
     @commands.command()
-    async def inv(self, ctx, member: typing.Optional[discord.Member]):
+    async def inv(self, ctx, member=None):
+        if member: member = await Member.convert(ctx, member)
         if not member:
             title = "Vos cartes : \n"
             member = ctx.author
@@ -272,7 +275,8 @@ class Tarot(Module):
         await ctx.send(embed=embed)
 
     @commands.command()
-    async def diff(self, ctx, member: discord.Member):
+    async def diff(self, ctx, member):
+        member = await Member.convert(ctx, member)
         cards = self.cards()
         my_cards = self.inv_dict(ctx.author)
         opponent_cards = self.inv_dict(member)
@@ -308,20 +312,20 @@ class Tarot(Module):
         return dict(cursor.fetchall())
 
     @commands.command()
-    async def show(self, ctx, number: int):
-        card = self.cards()[number]
+    async def show(self, ctx, number):
+        card = self.cards()[int(number)]
         if card.unlocked:
             embed = discord.Embed(title=card.name,
                                   url=card.url,
                                   colour=discord.Colour(int(card.color, 16)))
-            embed.set_thumbnail(url=card.url)
+            embed.set_image(url=card.url)
             embed.add_field(name=card.prefix, value=card.desc, inline=False)
             await ctx.send(embed=embed)
         else:
             await ctx.send("Cette carte n'est pas encore disponible")
 
     @commands.command()
-    @commands.has_any_role("Circé")
+    @commands.has_any_role(admin_id)
     async def unlock(self, ctx, number: int):
         cursor = self.client.mydb.cursor()
         cursor.execute("UPDATE cards_info SET unlocked = 1 "
@@ -337,7 +341,8 @@ class Tarot(Module):
             await trade.update(ctx)
 
     @trade.command()
-    async def start(self, ctx, member: discord.Member):
+    async def start(self, ctx, member):
+        member = await Member.convert(ctx, member)
         for trade in self.trades:
             if ctx.author.id == trade.left.id or ctx.author.id == trade.right.id:
                 await ctx.send(f"Vous êtes déjà en cours d'échange")

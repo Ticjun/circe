@@ -1,4 +1,5 @@
 from discord.ext import commands
+import discord
 import dataclasses
 import json
 import os
@@ -6,13 +7,11 @@ import os
 LOCAL_FILE = "local.json"
 CONFIG_FILE = "config.json"
 
-
 class DataclassJSONEncoder(json.JSONEncoder):
     def default(self, o):
         if dataclasses.is_dataclass(o):
             return dataclasses.asdict(o)
         return super().default(o)
-
 
 class BotPersistent(commands.Bot):
     def __init__(self, *args, **kwargs):
