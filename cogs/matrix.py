@@ -72,10 +72,14 @@ class Matrix(Module):
             await command(ctx, *args)
 
     def com(self, space, args):
-        e = [c for c in space if c.name == args[0]][0]
-        if isinstance(e, Group):
-            return self.com(e.commands, args[1:])
-        return e, args[1:]
+        e = [c for c in space if c.name == args[0]]
+        if not e:
+            return None
+        e = e[0]
+        args.pop(0)
+        if args and isinstance(e, Group):
+            return self.com(e.commands, args)
+        return e, args
 
 
 def setup(client):
@@ -88,6 +92,7 @@ class Context:
         self.guild = guild
         self.channel = channel
         self.author = author
+        self.invoked_subcommand = None
 
     async def send(self, *args, **kwargs):
         await self.channel.send(*args, **kwargs)
