@@ -15,8 +15,6 @@ class DataclassJSONEncoder(json.JSONEncoder):
 
 class BotPersistent(commands.Bot):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
         # Check if local config file exists, if not, load default config
         if os.path.isfile(LOCAL_FILE):
             with open(LOCAL_FILE, "r") as read_file:
@@ -27,12 +25,17 @@ class BotPersistent(commands.Bot):
             with open(LOCAL_FILE, "w+") as write_file:
                 json.dump(self.data, write_file, cls=DataclassJSONEncoder)
 
+        if self.data["proxy"]:
+            kwargs["proxy"] = self.data["proxy"]
+        super().__init__(*args, **kwargs)
+
     def save(self):
         d = {"Bot": self.data}
         for cog in self.cogs.values():
             d[cog.qualified_name] = cog.data
         with open(LOCAL_FILE, "w+") as write_file:
             json.dump(d, write_file, cls=DataclassJSONEncoder)
+        print("[Bot] Saved config")
 
     async def close(self):
         await super().close()

@@ -14,13 +14,13 @@ from botpersistent import Module
 class Matrix(Module):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.kill = False
         self.bridged_ids = {"!VztthSUDLToJgvJGdx:iiens.net": 772061551195979797}
 
     @commands.Cog.listener()
     async def on_ready(self):
         print("Matrix bridge started")
-        loop = asyncio.get_running_loop()
-        loop.create_task(self.log_matrix())
+        self.task = asyncio.create_task(self.log_matrix())
 
     async def log_matrix(self):
         proxies = {}
@@ -29,23 +29,37 @@ class Matrix(Module):
         ACCESS_TOKEN = self.data["matrix"]
         HS_URL = self.data["hs_url"]
 
+        first = True
+
         async with aiohttp.ClientSession() as session:
             while True:
+                if self.kill:
+                    break
                 logging.info("Syncing")
                 try:
+                    headers = {"Content-Type": "application/json"}
+                    params = {"access_token": ACCESS_TOKEN, "timeout": 10000}
                     if self.data["next_batch"]:
-                        params = {"access_token": ACCESS_TOKEN, "since": self.data["next_batch"], "timeout": 10000}
-                    else:
-                        params = {"access_token": ACCESS_TOKEN, "timeout": 10000}
-                    async with session.get(HS_URL + "/_matrix/client/r0/sync", headers={"Content-Type": "application/json"},
-                                           params=params) as response:
+                        params["since"] = self.data["next_batch"]
+
+                    kwargs = {"headers": headers, "params": params}
+                    if hasattr(self.client, "proxy"):
+                        kwargs["proxies"] = self.client.proxy
+
+                    async with session.get(HS_URL + "/_matrix/client/r0/sync", **kwargs) as response:
                         sync = await response.json()
                         self.data["next_batch"] = sync["next_batch"]
+                        if first:
+                            print("Dumping first batch")
+                            first = False
+                            continue
                         for room_id, room in sync["rooms"]["join"].items():
                             for event in room["timeline"]["events"]:
                                 if event["type"] == "m.room.message":
                                     print(event['content']['body'])
                                     await self.process(event, room_id)
+                except asyncio.CancelledError:
+                    raise
                 except Exception:
                     traceback.print_exc()
 
@@ -84,6 +98,10 @@ class Matrix(Module):
 
 def setup(client):
     client.add_cog(Matrix(client))
+
+
+def teardown(client):
+    client.get_cog("matrix").task.cancel()
 
 
 class Context:

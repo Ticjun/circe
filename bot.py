@@ -1,3 +1,4 @@
+import json
 import os
 
 import sqlite3
@@ -33,7 +34,6 @@ class Circe(BotPersistent):
     @staticmethod
     def cogs_list():
         return [filename for filename in os.listdir("./cogs") if filename.endswith(".py")]
-
 
 client = Circe(command_prefix='!')
 client.command_prefix = client.data["prefix"]
