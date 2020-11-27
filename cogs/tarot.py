@@ -117,11 +117,6 @@ class Tarot(Module):
         self.n_cards = 22
         self.trades = []
 
-    @commands.Cog.listener()
-    async def on_ready(self):
-        self.tarot_channel = self.client.get_channel(774795918557708318)
-        self.redeem_channel = self.client.get_channel(774622426080083999)
-
     @commands.command()
     @commands.has_any_role(admin_id)
     async def random_spawn(self, ctx):
@@ -207,18 +202,16 @@ class Tarot(Module):
                            (member.id, *result))
             self.client.mydb.commit()
             role = discord.utils.get(ctx.guild.roles, id=card.role_id)
-            await self.tarot_channel.send(f"{member.display_name} a obtenu la carte {role.mention}")
+            await ctx.send(f"{member.display_name} a obtenu la carte {role.mention}")
         elif card_n == "new":
-            await self.tarot_channel.send("Vous avez déjà obtenu toutes les cartes (Bravo !)\n"
+            await ctx.send("Vous avez déjà obtenu toutes les cartes (Bravo !)\n"
                                           "Vous obtenez donc une carte aléatoire")
-            await self.give(None, "rand", member)
+            await self.give(ctx, "rand", member)
         else:
-            await self.tarot_channel.send("Carte introuvable !")
+            await ctx.send("Carte introuvable !")
 
     @commands.command()
     async def redeem(self, ctx, code):
-        if ctx.channel.id != self.redeem_channel:
-            return
         cursor = self.client.mydb.cursor()
         cursor.execute("SELECT card_n FROM codes "
                        "WHERE code = ? AND used = 0 ",
@@ -230,7 +223,7 @@ class Tarot(Module):
                            (code, ))
             self.client.mydb.commit()
             await ctx.send("Code correct")
-            await self.give(None, result[0], ctx.author)
+            await self.give(ctx, result[0], ctx.author)
 
     @commands.command()
     @commands.has_any_role(admin_id)

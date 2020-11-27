@@ -2,12 +2,14 @@ import json
 import os
 
 import sqlite3
+import discord
 from discord.ext import commands
 
 from botpersistent import BotPersistent
 
 admin_id = 774620092352430092
 
+print(os.getcwd())
 
 class Circe(BotPersistent):
     def __init__(self, *args, **kwargs):
@@ -27,7 +29,7 @@ class Circe(BotPersistent):
         print(self.user.id)
         print('------')
         self.guild = self.get_guild(self.data["guild_id"])
-
+        
     async def on_message(self, message):
         await self.process_commands(message)
 
@@ -35,7 +37,9 @@ class Circe(BotPersistent):
     def cogs_list():
         return [filename for filename in os.listdir("./cogs") if filename.endswith(".py")]
 
-client = Circe(command_prefix='!')
+intents = discord.Intents.default()
+intents.members = True
+client = Circe(command_prefix='!', intents=intents)
 client.command_prefix = client.data["prefix"]
 
 
@@ -51,8 +55,14 @@ async def load(ctx, extension):
 @commands.has_any_role(admin_id)
 async def unload(ctx, extension):
     client.unload_extension(f"cogs.{extension}")
-    client.data["load"].pop(extension)
+    client.data["load"].delete(extension)
     print(f"unloaded {extension}")
+
+
+@client.command()
+@commands.has_any_role(admin_id)
+async def loaded(ctx):
+    await ctx.send(client.data["load"]) 
 
 
 @client.command()
@@ -62,6 +72,7 @@ async def shutdown(ctx):
     for filename in client.data["load"]:
         client.unload_extension(f"cogs.{filename}")
         print(f"unloaded {filename}")
+    await ctx.send("shutting down")
     await client.close()
 
 

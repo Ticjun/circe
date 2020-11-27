@@ -6,7 +6,7 @@ import traceback
 
 import discord
 from discord.ext import commands
-from discord.ext.commands import Group
+from discord.ext.commands import Group, MemberConverter
 
 from botpersistent import Module
 
@@ -15,7 +15,7 @@ class Matrix(Module):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.kill = False
-        self.bridged_ids = {"!VztthSUDLToJgvJGdx:iiens.net": 772061551195979797}
+        self.bridged_ids = {"!VztthSUDLToJgvJGdx:iiens.net": 772061551195979797, "!OQInHDjEyarDsUHidB:iiens.net" : 772059725742473227}
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -44,7 +44,7 @@ class Matrix(Module):
 
                     kwargs = {"headers": headers, "params": params}
                     if hasattr(self.client, "proxy"):
-                        kwargs["proxies"] = self.client.proxy
+                        kwargs["proxy"] = self.client.proxy
 
                     async with session.get(HS_URL + "/_matrix/client/r0/sync", **kwargs) as response:
                         sync = await response.json()
@@ -126,24 +126,19 @@ class Member:
         if isinstance(arg, Member):
             return arg
 
-        # Discord
-        if len(arg) > 5 and arg[-5] == '#':
-            username, _, discriminator = arg.rpartition('#')
-            members = await ctx.guild.query_members(username, limit=100)
-            res = discord.utils.get(members, name=username, discriminator=discriminator)
-            return Member(res.id, res.display_name)
-
         # Matrix
-        cursor = ctx.bot.mydb.cursor()
-        cursor.execute("SELECT * FROM users "
-                       "WHERE id = ? ",
-                       (arg,))
-        id = cursor.fetchone()[0]
-        if id:
-            return Member(id, id)
-
-        raise Exception
-
+        if isinstance(arg, str):
+            cursor = ctx.bot.mydb.cursor()
+            cursor.execute("SELECT * FROM users "
+                           "WHERE id = ? ", 
+                           (arg,))
+            id = cursor.fetchone()[0]
+            if id:
+                return Member(id, id)
+        
+        # Discord
+        member = await MemberConverter().convert(ctx, arg)
+        return member
 
 class Message:
     def __init__(self, content, author):

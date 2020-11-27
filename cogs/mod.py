@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands, tasks
 
 from botpersistent import Module
-
+from bot import admin_id
 
 class Mod(Module):
     def __init__(self, client):
@@ -17,14 +17,21 @@ class Mod(Module):
     @commands.Cog.listener()
     async def on_member_remove(self, member):
         channel = discord.utils.get(member.guild.channels, name="logs")
-        await channel.send(f"{member.display_name} est parti")
+        await channel.send(f"{member.name} ({member.id}) est parti")
 
-    @commands.command(brief="Clear")
-    @commands.has_any_role("Circé")
+    @commands.command()
+    @commands.has_any_role(admin_id)
     async def clear(self, ctx, count: int):
         if count > 100:
             return
         await ctx.channel.purge(limit=count)
+    
+    @commands.command()
+    @commands.has_any_role(admin_id)
+    async def img(self, ctx):
+        with open('image.png', 'rb') as f:
+            await self.client.user.edit(avatar=f.read())
+        print("Sucessfully updated the bot's profile picture")
 
 
 def setup(client):

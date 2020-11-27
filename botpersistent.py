@@ -27,6 +27,7 @@ class BotPersistent(commands.Bot):
 
         if self.data["proxy"]:
             kwargs["proxy"] = self.data["proxy"]
+            self.proxy=self.data["proxy"]
         super().__init__(*args, **kwargs)
 
     def save(self):
