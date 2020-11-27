@@ -148,7 +148,7 @@ class Tarot(Module):
         cards = [(deck, card) for deck in range(1, self.n_decks+1) for card in range(0, self.n_cards)]
         random.shuffle(cards)
         for card in cards:
-            cursor.execute("INSERT IGNORE INTO cards VALUES(?, ?, 0)",
+            cursor.execute("INSERT OR IGNORE INTO cards VALUES(?, ?, 0)",
                            (*card, ))
         self.client.mydb.commit()
         ctx.send("Cartes ajoutées")
