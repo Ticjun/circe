@@ -137,8 +137,9 @@ class Member:
             cursor.execute("SELECT * FROM users "
                            "WHERE id = ? ", 
                            (arg,))
-            id = cursor.fetchone()[0]
+            id = cursor.fetchone()
             if id:
+                id = id[0]
                 return Member(id, id)
         
         # Discord
