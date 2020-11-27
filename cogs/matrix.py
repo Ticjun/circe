@@ -115,6 +115,7 @@ class Context:
     async def send(self, *args, **kwargs):
         await self.channel.send(*args, **kwargs)
 
+
 class Member:
     def __init__(self, _id, name):
         self.bot = False
@@ -123,7 +124,8 @@ class Member:
 
     @staticmethod
     async def convert(ctx, arg):
-        if isinstance(arg, Member):
+        # isintanceof doesn't work here for some reason
+        if arg.__class__.__name__ == Member.__name__:
             return arg
 
         if isinstance(arg, discord.Member):
