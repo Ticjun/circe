@@ -126,6 +126,9 @@ class Member:
         if isinstance(arg, Member):
             return arg
 
+        if isinstance(arg, discord.Member):
+            return arg
+
         # Matrix
         if isinstance(arg, str):
             cursor = ctx.bot.mydb.cursor()
