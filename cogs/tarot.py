@@ -113,7 +113,7 @@ class Trade:
 class Tarot(Module):
     def __init__(self, client):
         super().__init__(client)
-        self.n_decks = 2
+        self.n_decks = 100
         self.n_cards = 22
         self.trades = []
 
@@ -148,7 +148,7 @@ class Tarot(Module):
         cards = [(deck, card) for deck in range(1, self.n_decks+1) for card in range(0, self.n_cards)]
         random.shuffle(cards)
         for card in cards:
-            cursor.execute("INSERT INTO cards VALUES(?, ?, 0)",
+            cursor.execute("INSERT IGNORE INTO cards VALUES(?, ?, 0)",
                            (*card, ))
         self.client.mydb.commit()
         ctx.send("Cartes ajoutées")
