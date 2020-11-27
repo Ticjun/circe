@@ -212,20 +212,31 @@ class Tarot(Module):
 
     @commands.command()
     async def redeem(self, ctx, code):
+        msg = ""
         cursor = self.client.mydb.cursor()
-        cursor.execute("SELECT card_n FROM codes "
-                       "WHERE code = ? AND used = 0 ",
+        cursor.execute("SELECT card_n, used FROM codes "
+                       "WHERE code = ?",
                        (code,))
         result = cursor.fetchone()
         if result:
-            cursor.execute("UPDATE codes SET used = 1 "
-                           "WHERE code = ?",
-                           (code, ))
-            self.client.mydb.commit()
-            await ctx.send("Code correct")
-            await self.give(ctx, result[0], ctx.author)
+            card_n, used = result
+            if used:
+                msg += "Code déjà utilisé\n"
+            else:
+                cursor.execute("UPDATE codes SET used = 1 "
+                               "WHERE code = ?",
+                               (code, ))
+                self.client.mydb.commit()
+                msg += "Code correct\n"
+                await self.give(ctx, card_n, ctx.author)
         else:
-            await ctx.send("Code erroné")
+            msg += "Code erroné\n"
+
+        cursor = self.client.mydb.cursor()
+        cursor.execute("SELECT COUNT(*) FROM codes "
+                       "WHERE used = 0")
+        restant = cursor.fetchone()[0]
+        await ctx.send(msg + f"{restant} codes restants")
 
     @commands.command()
     @commands.has_any_role(admin_id)
