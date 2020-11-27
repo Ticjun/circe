@@ -224,6 +224,8 @@ class Tarot(Module):
             self.client.mydb.commit()
             await ctx.send("Code correct")
             await self.give(ctx, result[0], ctx.author)
+        else:
+            await ctx.send("Code erroné")
 
     @commands.command()
     @commands.has_any_role(admin_id)
