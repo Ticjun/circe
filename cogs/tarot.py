@@ -120,8 +120,10 @@ class Tarot(Module):
     @commands.command()
     @commands.has_any_role(admin_id)
     async def random_spawn(self, ctx):
+        await ctx.send("activated random_spawn")
         while True:
-            time = random.uniform(1000, 3000)
+            time = random.uniform(1000, 5000)
+            await ctx.send(f"next spawn in {time}s")
             await asyncio.sleep(time)
             await self.spawn(ctx, "Une carte !", "rand")
 
@@ -354,10 +356,10 @@ class Tarot(Module):
     async def start(self, ctx, member):
         member = await Member.convert(ctx, member)
         for trade in self.trades:
-            if ctx.author.id == trade.left.id or ctx.author.id == trade.right.id:
+            if ctx.author.id == trade.left_side.id or ctx.author.id == trade.right_side.id:
                 await ctx.send(f"Vous êtes déjà en cours d'échange")
                 return
-            if ctx.author.id == trade.left.id or ctx.author.id == trade.right.id:
+            if ctx.author.id == trade.left_side.id or ctx.author.id == trade.right_side.id:
                 await ctx.send(f"{member.display_name} est déjà en cours d'échange")
                 return
         await ctx.send(f"Echange démaré avec {member.display_name}")
