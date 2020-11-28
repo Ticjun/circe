@@ -92,7 +92,7 @@ class Trade:
         return str
 
     def execute(self):
-        cursor = self.cog.bot.mydb.cursor()
+        cursor = self.cog.client.mydb.cursor()
         query = ("UPDATE cards SET user_id = ? "
                  "WHERE (deck_n, card_n) IN ( "
                  "SELECT deck_n, card_n FROM cards "
