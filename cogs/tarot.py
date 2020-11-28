@@ -121,9 +121,13 @@ class Tarot(Module):
     @commands.has_any_role(admin_id)
     async def random_spawn(self, ctx):
         while True:
-            time = random.uniform(3600, 3600*2)
+            time = random.uniform(1000, 3000)
             await asyncio.sleep(time)
-            await self.spawn(ctx, "random event", "rand")
+            await self.spawn(ctx, "Une carte !", "rand")
+
+    @commands.Cog.listener()
+    async def on_ready(self):
+        self.tarot_channel = self.client.get_channel(772061551195979797)
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -202,13 +206,13 @@ class Tarot(Module):
                            (member.id, *result))
             self.client.mydb.commit()
             role = discord.utils.get(ctx.guild.roles, id=card.role_id)
-            await ctx.send(f"{member.display_name} a obtenu la carte {role.mention}")
+            await self.tarot_channel.send(f"{member.display_name} a obtenu la carte {role.mention}")
         elif card_n == "new":
-            await ctx.send("Vous avez déjà obtenu toutes les cartes (Bravo !)\n"
+            await self.tarot_channel.send("Vous avez déjà obtenu toutes les cartes (Bravo !)\n"
                                           "Vous obtenez donc une carte aléatoire")
-            await self.give(ctx, "rand", member)
+            await self.tarot_channel.give(ctx, "rand", member)
         else:
-            await ctx.send("Carte introuvable !")
+            await self.tarot_channel.send("Carte introuvable !")
 
     @commands.command()
     async def redeem(self, ctx, code):
