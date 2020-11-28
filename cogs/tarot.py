@@ -356,10 +356,10 @@ class Tarot(Module):
     async def start(self, ctx, member):
         member = await Member.convert(ctx, member)
         for trade in self.trades:
-            if ctx.author.id == trade.left_side.id or ctx.author.id == trade.right_side.id:
+            if ctx.author.id == trade.left_side.member.id or ctx.author.id == trade.right_side.member.id:
                 await ctx.send(f"Vous êtes déjà en cours d'échange")
                 return
-            if ctx.author.id == trade.left_side.id or ctx.author.id == trade.right_side.id:
+            if ctx.author.id == trade.left_side.member.id or ctx.author.id == trade.right_side.member.id:
                 await ctx.send(f"{member.display_name} est déjà en cours d'échange")
                 return
         await ctx.send(f"Echange démaré avec {member.display_name}")
