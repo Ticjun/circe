@@ -211,7 +211,7 @@ class Tarot(Module):
 
     @commands.command()
     @commands.has_any_role(admin_id)
-    async def give(self, ctx, member, card_n):
+    async def give(self, ctx, card_n, member):
         member = await Member.convert(ctx, member)
         cursor = self.client.mydb.cursor()
         if card_n == "rand":
@@ -247,7 +247,7 @@ class Tarot(Module):
 
     @commands.command()
     @commands.has_any_role(admin_id)
-    async def take(self, ctx, member, card_n):
+    async def take(self, ctx, card_n, member):
         member = await Member.convert(ctx, member)
         cursor = self.client.mydb.cursor()
         if card_n == "rand":
