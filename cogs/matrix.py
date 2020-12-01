@@ -35,7 +35,6 @@ class Matrix(Module):
             while True:
                 if self.kill:
                     break
-                logging.info("Syncing")
                 try:
                     headers = {"Content-Type": "application/json"}
                     params = {"access_token": ACCESS_TOKEN, "timeout": 10000}

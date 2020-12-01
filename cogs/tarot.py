@@ -263,9 +263,9 @@ class Tarot(Module):
         result = cursor.fetchone()
         if result:
             card = self.cards()[result[1]]
-            cursor.execute("DELETE FROM cards "
-                           "WHERE user_id = ? AND deck_n = ? AND card_n = ?",
-                           (member.id, *result))
+            cursor.execute("UPDATE cards SET user_id = 0 "
+                           "WHERE deck_n = ? AND card_n = ?",
+                           (*result,))
             self.client.mydb.commit()
             role = discord.utils.get(ctx.guild.roles, id=card.role_id)
             await self.tarot_channel.send(f"{member.display_name} a perdu la carte {role.mention}")
