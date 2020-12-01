@@ -107,7 +107,7 @@ class Trade:
         for card_n, count in list(self.left_side.trade.items()):
             for _ in range(count):
                 cursor.execute(query, (self.right_side.member.id, -1, card_n))
-        self.cog.bot.mydb.commit()
+        self.cog.client.mydb.commit()
 
 
 class Tarot(Module):
@@ -131,7 +131,7 @@ class Tarot(Module):
     async def on_ready(self):
         # divination : 772061551195979797
         # atelier : 772059725742473227
-        self.tarot_channel = self.client.get_channel(772059725742473227)
+        self.tarot_channel = self.client.get_channel(772061551195979797)
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -257,8 +257,8 @@ class Tarot(Module):
                            (member.id,))
         else:
             cursor.execute("SELECT deck_n, card_n FROM cards "
-                           "WHERE card_n = ? AND user_id = 0",
-                           (card_n,))
+                           "WHERE card_n = ? AND user_id = ?",
+                           (card_n, member.id))
 
         result = cursor.fetchone()
         if result:

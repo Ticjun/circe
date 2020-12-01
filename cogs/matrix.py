@@ -55,7 +55,6 @@ class Matrix(Module):
                         for room_id, room in sync["rooms"]["join"].items():
                             for event in room["timeline"]["events"]:
                                 if event["type"] == "m.room.message":
-                                    print(event['content']['body'])
                                     await self.process(event, room_id)
                 except asyncio.CancelledError:
                     raise
