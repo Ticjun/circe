@@ -71,6 +71,7 @@ class Trade:
         if self.right_side.ok and self.left_side.ok:
             await ctx.send("Les deux participants se sont mis d'accord")
             self.execute()
+            self.cleanup()
             await ctx.send("Echange terminé")
             return
         await self.update(ctx)
@@ -109,6 +110,8 @@ class Trade:
                 cursor.execute(query, (self.right_side.member.id, -1, card_n))
         self.cog.client.mydb.commit()
 
+    def cleanup(self):
+        self.cog.trades.remove(self)
 
 class Tarot(Module):
     def __init__(self, client):
