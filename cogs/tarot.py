@@ -122,14 +122,16 @@ class Tarot(Module):
     async def random_spawn(self, ctx):
         await ctx.send("activated random_spawn")
         while True:
-            time = random.uniform(1000, 5000)
+            time = random.uniform(3000, 10000)
             await ctx.send(f"next spawn in {time}s")
             await asyncio.sleep(time)
             await self.spawn(ctx, "Une carte !", "rand")
 
     @commands.Cog.listener()
     async def on_ready(self):
-        self.tarot_channel = self.client.get_channel(772061551195979797)
+        # divination : 772061551195979797
+        # atelier : 772059725742473227
+        self.tarot_channel = self.client.get_channel(772059725742473227)
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -183,7 +185,33 @@ class Tarot(Module):
 
     @commands.command()
     @commands.has_any_role(admin_id)
-    async def give(self, ctx, card_n, member):
+    async def print_codes(self, ctx):
+        cursor = self.client.mydb.cursor()
+        cursor.execute("SELECT code FROM codes "
+                       "WHERE used = 0")
+        res = cursor.fetchall()
+        msg = "```\n"
+        for code in res:
+            msg += f"{code[0]}\n"
+        msg += "```"
+        await ctx.send(msg)
+
+    @commands.command()
+    @commands.has_any_role(admin_id)
+    async def print_cards(self, ctx):
+        cursor = self.client.mydb.cursor()
+        cursor.execute("SELECT user_id, COUNT(*) FROM cards "
+                       "GROUP BY user_id")
+        res = cursor.fetchall()
+        msg = "```\n"
+        for a, b in res:
+            msg += f"{a} : {b}\n"
+        msg += "```"
+        await ctx.send(msg)
+
+    @commands.command()
+    @commands.has_any_role(admin_id)
+    async def give(self, ctx, member, card_n):
         member = await Member.convert(ctx, member)
         cursor = self.client.mydb.cursor()
         if card_n == "rand":
@@ -200,6 +228,7 @@ class Tarot(Module):
             cursor.execute("SELECT deck_n, card_n FROM cards "
                            "WHERE card_n = ? AND user_id = 0",
                            (card_n,))
+
         result = cursor.fetchone()
         if result:
             card = self.cards()[result[1]]
@@ -213,6 +242,33 @@ class Tarot(Module):
             await self.tarot_channel.send("Vous avez déjà obtenu toutes les cartes (Bravo !)\n"
                                           "Vous obtenez donc une carte aléatoire")
             await self.tarot_channel.give(ctx, "rand", member)
+        else:
+            await self.tarot_channel.send("Carte introuvable !")
+
+    @commands.command()
+    @commands.has_any_role(admin_id)
+    async def take(self, ctx, member, card_n):
+        member = await Member.convert(ctx, member)
+        cursor = self.client.mydb.cursor()
+        if card_n == "rand":
+            cursor.execute("SELECT deck_n, card_n FROM cards "
+                           "WHERE user_id = ? "
+                           "ORDER BY random()",
+                           (member.id,))
+        else:
+            cursor.execute("SELECT deck_n, card_n FROM cards "
+                           "WHERE card_n = ? AND user_id = 0",
+                           (card_n,))
+
+        result = cursor.fetchone()
+        if result:
+            card = self.cards()[result[1]]
+            cursor.execute("DELETE FROM cards "
+                           "WHERE user_id = ? AND deck_n = ? AND card_n = ?",
+                           (member.id, *result))
+            self.client.mydb.commit()
+            role = discord.utils.get(ctx.guild.roles, id=card.role_id)
+            await self.tarot_channel.send(f"{member.display_name} a perdu la carte {role.mention}")
         else:
             await self.tarot_channel.send("Carte introuvable !")
 
@@ -306,7 +362,7 @@ class Tarot(Module):
                 msg += f"# {card.prefix:<8} {card.name:<20} \n"
         msg += "```"
         embed = discord.Embed(title="Diff", color=0x000000)
-        embed.add_field(name="En rouge les cartes que vous pouvez donner\nEn vert celles qui vous intéressent", value=msg, inline=False)
+        embed.add_field(name="En rouge les cartes que l'autre recherche et que vous possédez\nEn vert celles que vous recherchez et que l'autre possède", value=msg, inline=False)
         await ctx.send(embed=embed)
 
     def cards(self):
